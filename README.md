@@ -15,6 +15,33 @@ and it takes over automatically.
 > HT16K33-family LED controller at I²C 0x73). The full LED map lives in
 > [`mac/panel.py`](mac/panel.py). Your unit's wiring may differ.
 
+## ⚠️ Back up your stock firmware BEFORE you flash anything
+
+This is the one step you cannot skip and cannot undo. After a full power loss the
+LED controller comes back in a "cold" state that the bridge firmware **cannot**
+wake on its own — only the stock EleksMaker firmware's boot sequence brings it
+up. So the project needs a copy of the stock firmware to recover from a power
+cycle, and **the only time you can get it is before you overwrite it.**
+
+Once the bridge is flashed, the stock firmware is gone from the device and
+**there is no way to get it back** — it is not included here (it is EleksMaker's
+proprietary firmware and a full dump contains the device's saved WiFi password),
+and you cannot dump it from a device that no longer has it.
+
+So, with the clock plugged in and **before running anything else:**
+
+```bash
+# find your port (usually /dev/cu.usbmodemXXXX)
+ls /dev/cu.usbmodem*
+# dump the full 8 MB flash and keep this file safe forever
+python3 -m esptool --chip esp32s3 --port /dev/cu.usbmodemXXXX \
+  read-flash 0 0x800000 wfd2-stock-fullflash-8MB.bin
+```
+
+Keep `wfd2-stock-fullflash-8MB.bin` in this folder. `wfd2-recover` uses it to
+re-initialize the panel after any power loss. Without it, a cold boot leaves the
+display dark until you re-flash stock from a backup you don't have.
+
 ## Install (macOS)
 
 With the clock plugged into this Mac:
