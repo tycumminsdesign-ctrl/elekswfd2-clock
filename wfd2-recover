@@ -1,0 +1,46 @@
+#!/bin/bash
+# Recover the display after a full power loss.
+#
+# The LED controller powers up in a state our custom firmware cannot initialize
+# on its own -- only the stock firmware's boot sequence brings it up, and that
+# good state then persists in the controller through soft-resets (so our bridge
+# firmware runs on top of it indefinitely, until the next unplug).
+#
+# So: flash stock briefly to initialize the hardware, then flash our bridge on
+# top. Self-contained -- uses only this project's venv esptool and two merged
+# firmware images, so it works from a minimal launchd environment and survives
+# across sessions.
+#
+#   ./wfd2-recover
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="$HERE/.venv/bin/python"
+STOCK="$HERE/wfd2-stock-fullflash-8MB.bin"
+BRIDGE="$HERE/firmware/artifacts/bridge-merged.bin"
+
+port() { ls /dev/cu.usbmodem* 2>/dev/null | head -1; }
+flash() { "$PY" -m esptool --chip esp32s3 --port "$1" --after hard-reset write-flash 0 "$2" >/dev/null 2>&1; }
+
+P="$(port)"; [ -n "$P" ] || { echo "no clock found on USB"; exit 1; }
+echo "clock on $P"
+
+if [ ! -f "$STOCK" ]; then
+  echo "no stock backup at $STOCK -- cannot auto-recover a cold boot."
+  echo "Make your own before flashing custom firmware (see README):"
+  echo "  $PY -m esptool --chip esp32s3 --port $P read-flash 0 0x800000 $STOCK"
+  exit 1
+fi
+
+echo "1/3  flashing stock firmware to initialize the display controller..."
+flash "$P" "$STOCK"
+
+echo "2/3  letting stock boot and bring up the panel (15s)..."
+sleep 15
+
+P="$(port)"                      # port re-enumerates after the reset
+echo "3/3  flashing the custom bridge firmware on $P..."
+flash "$P" "$BRIDGE"
+sleep 2
+
+echo "done -- panel initialized, running custom firmware."

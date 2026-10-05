@@ -1,0 +1,18 @@
+#!/bin/bash
+# Launcher for the EleksWFD 2 driver.
+#
+# Uses the project's own virtualenv so the command works from anywhere without
+# activating anything first. Creates the venv on first run.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$HERE/.venv"
+
+if [ ! -x "$VENV/bin/python" ]; then
+  echo "setting up virtualenv..." >&2
+  python3 -m venv "$VENV"
+  "$VENV/bin/pip" install --quiet --upgrade pip
+  "$VENV/bin/pip" install --quiet psutil pyserial
+fi
+
+exec "$VENV/bin/python" "$HERE/mac/wfd2.py" "$@"

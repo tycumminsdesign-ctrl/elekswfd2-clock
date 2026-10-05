@@ -1,0 +1,12 @@
+{
+  "note": "Rough dot-matrix map from webcam sweep (mac/dmsweep.py). Camera was at an angle with bloom, so within-row bit order has ~1-2 swaps and byte 17 reads as a border, not a clean row. Good enough for blob/fill effects; needs interactive calibration (user's eyes) or a clean straight-on capture for pixel-accurate sprites.",
+  "grid_guess": "8 columns x 4-5 rows",
+  "rows_top_to_bottom": {
+    "26": [6, 7, 0, 1, 2, 4, 3, 5],
+    "27": [5, 6, 7, 0, 1, 2, 4, 3],
+    "28": [4, 3, 5, 6, 7, 0, 1, 2],
+    "29": [4, 5, 6, 7, 0, 1]
+  },
+  "byte_17": "reads as a border/frame (left column + top/bottom edges), not a clean row",
+  "bytes_involved": [17, 26, 27, 28, 29]
+}
