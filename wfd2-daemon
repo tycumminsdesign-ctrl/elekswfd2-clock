@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Supervisor that keeps the EleksWFD 2 running with zero manual steps.
+
+Watches for the clock's USB device and reacts to power events:
+
+  * When it DISCONNECTS then RECONNECTS after a real absence, the clock was
+    unplugged -- i.e. it just got power again -- so its display controller is in
+    the un-initializable cold state. Run the recovery (flash stock to init the
+    controller, then flash the bridge) and resume streaming.
+  * A brief re-enumeration (USB blip on sleep/wake with power maintained) skips
+    the slow recovery and just resumes the clock.
+  * On daemon start it does NOT force a recovery -- it simply starts the clock.
+    If the controller happens to be cold, one unplug/replug fixes it (that being
+    the very "got power" event this handles). Deliberately not recovering on
+    start keeps launchd's KeepAlive from ever turning a crash into a reflash
+    loop.
+
+Runs from the launchd agent (wfd2-daemon.plist). Logs to /tmp/wfd2-daemon.log.
+"""
+
+from __future__ import annotations
+
+import glob
+import os
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+VENV_PY = os.path.join(HERE, ".venv", "bin", "python")
+RECOVER = os.path.join(HERE, "wfd2-recover")
+CLOCK = os.path.join(HERE, "mac", "wfd2.py")
+
+RECOVER_IF_ABSENT_S = 5.0     # gone longer than this => real power cycle
+MIN_RECOVER_INTERVAL_S = 90.0  # hard floor between recoveries, a loop backstop
+POLL_S = 2.0
+
+_clock: subprocess.Popen | None = None
+_last_recover = 0.0
+
+
+def log(msg: str) -> None:
+    print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
+
+
+def port() -> str | None:
+    p = sorted(glob.glob("/dev/cu.usbmodem*"))
+    return p[0] if p else None
+
+
+def stop_clock() -> None:
+    global _clock
+    if _clock and _clock.poll() is None:
+        _clock.terminate()
+        try:
+            _clock.wait(3)
+        except subprocess.TimeoutExpired:
+            _clock.kill()
+    _clock = None
+
+
+def start_clock() -> None:
+    global _clock
+    stop_clock()
+    _clock = subprocess.Popen(
+        [VENV_PY, CLOCK, "--quiet"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    log("clock streaming")
+
+
+def recover() -> None:
+    """Flash stock (inits the controller) then bridge. Never crashes the loop."""
+    global _last_recover
+    if time.time() - _last_recover < MIN_RECOVER_INTERVAL_S:
+        log("skipping recovery (ran one very recently)")
+        return
+    _last_recover = time.time()
+    stop_clock()
+    log("recovering (initializing display controller, ~40s)...")
+    try:
+        subprocess.run(["/bin/bash", RECOVER], timeout=120,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        log("recovery done")
+    except Exception as exc:  # noqa: BLE001 - a failed recovery must not kill us
+        log(f"recovery error: {exc!r}")
+
+
+def main() -> None:
+    present = port() is not None
+    absent_since: float | None = None if present else time.time()
+    if present:
+        start_clock()   # start streaming; do NOT force-recover on daemon start
+
+    while True:
+        try:
+            p = port()
+            now = time.time()
+            if p and not present:
+                gone = (now - absent_since) if absent_since else 1e9
+                if gone >= RECOVER_IF_ABSENT_S:
+                    log(f"reconnected after {gone:.0f}s -- power cycle, recovering")
+                    recover()
+                else:
+                    log(f"re-enumerated after {gone:.1f}s -- resuming, no reflash")
+                start_clock()
+                present, absent_since = True, None
+            elif not p and present:
+                log("clock disconnected")
+                stop_clock()
+                present, absent_since = False, now
+            elif p and present and (_clock is None or _clock.poll() is not None):
+                start_clock()   # clock exited on its own; relaunch
+            time.sleep(POLL_S)
+        except Exception as exc:  # noqa: BLE001 - keep the supervisor alive no matter what
+            log(f"loop error: {exc!r}")
+            time.sleep(POLL_S)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        stop_clock()
+        sys.exit(0)
