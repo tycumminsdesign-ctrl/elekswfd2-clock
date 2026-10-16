@@ -58,7 +58,7 @@ def _ram_pressure() -> float:
     pressure = max(0.0, min(100.0, 100.0 - free))
     if state is not None and state >= 4:
         return RAM_CRITICAL
-    if state == 2:
+    if state is not None and state >= 2:
         return min(95.0, RAM_WARN_FLOOR + 0.3 * pressure)
     return pressure * RAM_NORMAL_SCALE
 
