@@ -125,9 +125,14 @@ Two more things to know:
 
 - The clock keeps the CLI login fresh with a tiny Haiku request about every
   8 hours (around 900 tokens each), because `claude auth status` alone does not
-  renew an expired login.
+  renew an expired login. It renews shortly before the login expires, with a
+  second try if the first fails. Renewal and Keychain problems are logged to
+  `/tmp/wfd2-daemon.log`.
 - `./wfd2-usage off` turns the grid off completely: no login reads, no renewals,
-  no usage requests. `./wfd2-usage on` turns it back on.
+  no usage requests. `./wfd2-usage on` turns it back on. The switch is a file
+  (`claude-usage.off`), so it persists across restarts; `./wfd2-usage status`
+  exits 0 when on and 1 when off. The check command `mac/claude_usage.py` (and
+  `--diagnose`) respects the switch too, so turn it on first.
 
 ## Flashing the firmware
 

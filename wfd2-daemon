@@ -62,10 +62,10 @@ def stop_clock() -> None:
 def start_clock() -> None:
     global _clock
     stop_clock()
-    _clock = subprocess.Popen(
-        [VENV_PY, CLOCK, "--quiet"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    # Inherit stdout/stderr so the clock's few log lines (login renewal,
+    # Keychain refusals, weather disabled) reach this log via launchd.
+    # --quiet keeps the clock from printing per-frame output.
+    _clock = subprocess.Popen([VENV_PY, CLOCK, "--quiet"])
     log("clock streaming")
 
 
@@ -79,9 +79,13 @@ def recover() -> None:
     stop_clock()
     log("recovering (initializing display controller, ~40s)...")
     try:
-        subprocess.run(["/bin/bash", RECOVER], timeout=120,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        log("recovery done")
+        # Let wfd2-recover's few progress lines through (it silences esptool
+        # itself) and report the real outcome instead of always "done".
+        res = subprocess.run(["/bin/bash", RECOVER], timeout=120, check=False)
+        if res.returncode == 0:
+            log("recovery done")
+        else:
+            log(f"recovery FAILED (exit {res.returncode}) -- see the lines above")
     except Exception as exc:  # noqa: BLE001 - a failed recovery must not kill us
         log(f"recovery error: {exc!r}")
 

@@ -31,3 +31,5 @@ WFD2Clock.app/
 
 # Off switch for the Claude usage grid (./wfd2-usage off)
 claude-usage.off
+# Throttle stamp for the login renewal (mac/claude_usage.py)
+.claude-usage-last-renew

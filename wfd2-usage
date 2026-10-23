@@ -1,14 +1,18 @@
 #!/bin/bash
 # Turn the Claude-usage dot grid on or off. Off = the clock stops reading your
 # Claude login, stops renewing it and stops asking for usage; the grid goes
-# blank within ~5 s. Everything else on the clock keeps running.
+# blank within ~5 s. Everything else on the clock keeps running. The switch is
+# a file (claude-usage.off), so it persists across restarts and reboots.
 #
 #   ./wfd2-usage off | on | status
+#
+# `status` exits 0 when ON and 1 when OFF, so it can be used in scripts.
 set -euo pipefail
 FLAG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/claude-usage.off"
 case "${1:-status}" in
   off)    touch "$FLAG"; echo "Claude usage grid: OFF (no login reads, renewals or usage requests)" ;;
   on)     rm -f "$FLAG"; echo "Claude usage grid: ON" ;;
-  status) [ -e "$FLAG" ] && echo "Claude usage grid: OFF" || echo "Claude usage grid: ON" ;;
+  status) if [ -e "$FLAG" ]; then echo "Claude usage grid: OFF"; exit 1
+          else echo "Claude usage grid: ON"; exit 0; fi ;;
   *)      echo "usage: $0 off | on | status"; exit 2 ;;
 esac
