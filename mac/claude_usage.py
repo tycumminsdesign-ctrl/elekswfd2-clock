@@ -3,7 +3,8 @@
 
 Reads the login Claude Code keeps in the macOS Keychain ("Claude Code-credentials")
 and asks Anthropic's usage endpoint -- the same one Claude Code's /usage reads --
-for the 5-hour session and weekly utilization. So the clock shows whichever
+for the 5-hour session and weekly utilization. The gauge shows the 5-hour
+session only; the weekly figure is kept for --diagnose. So the clock shows whichever
 account is signed in to Claude Code on the Mac it's plugged into: work usage on a
 work Mac, personal usage on a personal one.
 
@@ -45,7 +46,7 @@ class Usage:
 
     @property
     def worst(self) -> float | None:
-        """The limit closest to running out -- what the gauge shows."""
+        """The limit closest to running out (informational; the gauge shows .session)."""
         vals = [v for v in (self.session, self.weekly) if v is not None]
         return max(vals) if vals else None
 
@@ -113,7 +114,7 @@ def fetch() -> Usage:
         with urllib.request.urlopen(req, timeout=10) as r:
             d = json.load(r)
         u = Usage(_fraction(d.get("five_hour")), _fraction(d.get("seven_day")), True)
-        return u if u.worst is not None else Usage(None, None, False)
+        return u if u.session is not None else Usage(None, None, False)
     except Exception:
         return Usage(None, None, False)
 
@@ -193,4 +194,4 @@ if __name__ == "__main__":
         pct = lambda v: "--" if v is None else f"{v * 100:.0f}% used"
         print(f"5-hour session: {pct(u.session)}")
         print(f"Weekly:         {pct(u.weekly)}")
-        print(f"Grid would show: {pct(u.worst)}")
+        print(f"Grid shows the 5-hour session: {pct(u.session)}")

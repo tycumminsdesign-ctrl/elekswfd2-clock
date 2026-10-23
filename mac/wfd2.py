@@ -169,7 +169,7 @@ def stream(clock: Clock, quiet: bool, tau: float = 0.4) -> None:
         # 7x7 grid: Claude usage used so far (blank = all left), animated --
         # new dots drop in like Tetris pieces and lift back out when a window
         # resets. After text(), which rewrites a byte the grid shares.
-        grid.update(usage.latest.worst)
+        grid.update(usage.latest.session)   # 5-hour session only
         grid.step()
         f.grid_set(grid.cells())
 

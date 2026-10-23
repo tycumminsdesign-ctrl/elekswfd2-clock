@@ -94,9 +94,10 @@ The time is **24-hour** by default. For a 12-hour clock, answer `12` when
 ### Claude usage on the dot matrix
 
 The 7x7 dot grid in the middle fills from the bottom-left as you use your Claude
-plan: blank means all of it is left, full means you've hit a limit. It shows
-whichever limit is closer to running out, the 5-hour session or the weekly one,
-and refreshes every 5 minutes. It follows the account signed in to **Claude
+plan's **5-hour session**: blank means the session is fresh, full means you've
+hit the session limit. It refreshes every 5 minutes, and because the session
+window resets every 5 hours you'll see it drain back out regularly (the weekly
+limit is read too, for `--diagnose`, but isn't shown). It follows the account signed in to **Claude
 Code** on the Mac the clock is plugged into, so a work Mac shows work usage and
 a personal Mac shows personal usage.
 
