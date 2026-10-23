@@ -28,3 +28,6 @@ wfd2-stock-*.bin
 
 # Built by install.sh from wfd2-launcher.c
 WFD2Clock.app/
+
+# Off switch for the Claude usage grid (./wfd2-usage off)
+claude-usage.off

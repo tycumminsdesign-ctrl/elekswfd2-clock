@@ -26,7 +26,7 @@ import serial
 from panel import METERS, Frame
 from weather import WeatherService
 from audio import AudioService
-from claude_usage import UsageService
+from claude_usage import UsageService, is_off as usage_off
 from grid_anim import GridAnimator
 from wfd2_stats import read_cpu, read_stats
 
@@ -169,7 +169,9 @@ def stream(clock: Clock, quiet: bool, tau: float = 0.4) -> None:
         # 7x7 grid: Claude usage used so far (blank = all left), animated --
         # new dots drop in like Tetris pieces and lift back out when a window
         # resets. After text(), which rewrites a byte the grid shares.
-        grid.update(usage.latest.session)   # 5-hour session only
+        # 5-hour session only. Switched off (./wfd2-usage off) clears it; a
+        # failed read (None) keeps what's shown rather than flickering.
+        grid.update(0.0 if usage_off() else usage.latest.session)
         grid.step()
         f.grid_set(grid.cells())
 

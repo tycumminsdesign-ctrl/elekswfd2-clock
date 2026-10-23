@@ -121,6 +121,14 @@ the stack like a Tetris piece, and when a usage window resets the dots lift off
 the top and rise back out. Speed is `RELEASE_FRAMES` in `mac/grid_anim.py`
 (frames between dots; the clock renders at 10 fps).
 
+Two more things to know:
+
+- The clock keeps the CLI login fresh with a tiny Haiku request about every
+  8 hours (around 900 tokens each), because `claude auth status` alone does not
+  renew an expired login.
+- `./wfd2-usage off` turns the grid off completely: no login reads, no renewals,
+  no usage requests. `./wfd2-usage on` turns it back on.
+
 ## Flashing the firmware
 
 The clock runs the bridge firmware in [`firmware/`](firmware/). A pre-merged

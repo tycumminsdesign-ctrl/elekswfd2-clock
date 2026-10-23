@@ -25,6 +25,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -36,6 +37,18 @@ USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 POLL_SECONDS = 300.0          # 5 min; usage moves slowly
 RETRY_SECONDS = 60.0
 RENEW_MARGIN_S = 600.0        # renew the login when it has under 10 min left
+RENEW_MIN_INTERVAL_S = 1800.0 # never attempt a renewal more than every 30 min,
+                              # so a persistent failure can't loop requests
+CHECK_SECONDS = 5.0           # how often the off switch is noticed
+
+# Off switch: while this file exists the gauge is off -- no Keychain reads, no
+# renewals, no usage requests, grid blank. `./wfd2-usage off|on|status`.
+OFF_FLAG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "claude-usage.off")
+
+
+def is_off() -> bool:
+    return os.path.exists(OFF_FLAG)
 
 
 @dataclass
@@ -74,19 +87,37 @@ def _claude_cli() -> str | None:
 
 def _renew() -> None:
     """Have Claude Code renew its login (it lasts ~8 h). We never write the
-    Keychain ourselves -- the CLI owns that item, so it does the refresh."""
+    Keychain ourselves -- the CLI owns that item, so it does the refresh.
+
+    `claude auth status` does NOT renew it (it reports logged-in off the
+    refresh token and leaves the expired access token in place). Only a real
+    request makes the CLI refresh, so send the smallest one there is: one
+    Haiku turn, ~3 a day, from a neutral folder, with Claude Code's own system
+    prompt, tools and MCP servers stripped (~900 tokens instead of ~47k) and no
+    session saved to ~/.claude/projects."""
     cli = _claude_cli()
     if cli:
         try:
-            subprocess.run([cli, "auth", "status"], capture_output=True, timeout=60)
+            subprocess.run(
+                [cli, "-p", "Reply with OK", "--model", "haiku", "--max-turns", "1",
+                 "--system-prompt", "Reply with OK.", "--tools", "",
+                 "--strict-mcp-config", "--no-session-persistence"],
+                capture_output=True, timeout=120, cwd=tempfile.gettempdir())
         except Exception:
             pass
 
 
+_last_renew = 0.0
+
+
 def _access_token() -> str | None:
+    global _last_renew
     oauth = _read_login()
     expires = oauth.get("expiresAt")
     if expires and expires / 1000 < time.time() + RENEW_MARGIN_S:
+        if time.time() - _last_renew < RENEW_MIN_INTERVAL_S:
+            return None if expires / 1000 < time.time() else oauth.get("accessToken")
+        _last_renew = time.time()
         _renew()
         oauth = _read_login()
         expires = oauth.get("expiresAt")
@@ -128,10 +159,16 @@ class UsageService(threading.Thread):
         self._stop = threading.Event()
 
     def run(self) -> None:
+        next_fetch = 0.0
         while not self._stop.is_set():
-            u = fetch()
-            self.latest = u
-            self._stop.wait(POLL_SECONDS if u.ok else RETRY_SECONDS)
+            if is_off():
+                self.latest = Usage(None, None, False)
+                next_fetch = 0.0            # fetch straight away once switched on
+            elif time.time() >= next_fetch:
+                u = fetch()
+                self.latest = u
+                next_fetch = time.time() + (POLL_SECONDS if u.ok else RETRY_SECONDS)
+            self._stop.wait(CHECK_SECONDS)
 
     def stop(self) -> None:
         self._stop.set()
