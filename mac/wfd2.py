@@ -27,6 +27,7 @@ from panel import METERS, Frame
 from weather import WeatherService
 from audio import AudioService
 from claude_usage import UsageService
+from grid_anim import GridAnimator
 from wfd2_stats import read_cpu, read_stats
 
 BAUD = 115200
@@ -143,6 +144,7 @@ def stream(clock: Clock, quiet: bool, tau: float = 0.4) -> None:
     audio.start()
     usage = UsageService()       # Claude plan usage -> 7x7 grid
     usage.start()
+    grid = GridAnimator()        # Tetris-style drop-in / lift-out animation
 
     while True:
         s = read_stats()
@@ -164,9 +166,12 @@ def stream(clock: Clock, quiet: bool, tau: float = 0.4) -> None:
         # 12-hour). Both rows steady, no rotation.
         f.top_number(now.strftime("%y%m%d"))
         f.text(now.strftime(TIME_FMT), points={1, 3})           # HH:MM:SS
-        # 7x7 grid: Claude usage used so far (blank = all left). After text(),
-        # which rewrites a byte the grid shares.
-        f.grid_fill(usage.latest.worst)
+        # 7x7 grid: Claude usage used so far (blank = all left), animated --
+        # new dots drop in like Tetris pieces and lift back out when a window
+        # resets. After text(), which rewrites a byte the grid shares.
+        grid.update(usage.latest.worst)
+        grid.step()
+        f.grid_set(grid.cells())
 
         clock.send(f)
         if not quiet:

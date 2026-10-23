@@ -364,6 +364,17 @@ class Frame:
         for byte, bit in GRID_FILL_ORDER[:n]:
             self.buf[byte] |= 1 << bit
 
+    def grid_set(self, cells) -> None:
+        """Light exactly these dot-matrix cells ((byte, bit) pairs) and no others.
+
+        The animated gauge uses this instead of grid_fill(). Touches only grid
+        bits; like grid_fill, call it after text()/digit(), which rewrite byte 60.
+        """
+        for byte, bit in GRID_FILL_ORDER:
+            self.buf[byte] &= ~(1 << bit) & 0xFF
+        for byte, bit in cells:
+            self.buf[byte] |= 1 << bit
+
     def clear_vu(self) -> None:
         for b in VU_BYTES:
             self.buf[b] = 0

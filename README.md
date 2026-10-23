@@ -115,6 +115,11 @@ sent only to `api.anthropic.com`; it is never printed, logged or stored
 elsewhere. The usage endpoint isn't a published API and may change — if it
 stops answering, the grid just stays blank. `--diagnose` says which step fails.
 
+The fill is animated: each new dot drops from the top of its column and lands on
+the stack like a Tetris piece, and when a usage window resets the dots lift off
+the top and rise back out. Speed is `RELEASE_FRAMES` in `mac/grid_anim.py`
+(frames between dots; the clock renders at 10 fps).
+
 ## Flashing the firmware
 
 The clock runs the bridge firmware in [`firmware/`](firmware/). A pre-merged
